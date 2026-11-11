@@ -1,0 +1,12 @@
+{
+  "name": "procurement-stocks",
+  "private": true,
+  "type": "module",
+  "description": "½M stock control dashboard fed daily from the procurement stock file",
+  "scripts": {
+    "ingest": "node scripts/ingest.mjs",
+    "check": "node scripts/ingest.mjs --dry-run",
+    "serve": "python3 -m http.server 8080"
+  },
+  "engines": { "node": ">=20" }
+}

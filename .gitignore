@@ -1,0 +1,5 @@
+node_modules/
+data/raw/*
+!data/raw/.gitkeep
+.DS_Store
+*.log

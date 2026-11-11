@@ -1,0 +1,26 @@
+{
+  "source": {
+    "label": "Procurement stock file",
+    "owner": "Mohammad Hasan",
+    "fileName": null,
+    "shareUrl": "https://halfm-my.sharepoint.com/:x:/g/personal/mohammad_hasan_halfm_sa/cQpsgk4gW8sFQpHKAUAKypMdEgUCLxwz7z0Px_sj48AGCTZz3w",
+    "connectorUri": null
+  },
+  "timezone": "Asia/Riyadh",
+  "layout": "auto",
+  "sheets": [],
+  "ignoreSheets": [
+    "Total",
+    "Summary",
+    "Pivot",
+    "Lookup"
+  ],
+  "columns": {},
+  "thresholds": {
+    "criticalQty": 10,
+    "criticalDays": 7,
+    "lowFactor": 2
+  },
+  "categoryKeywords": {},
+  "publishBranch": "claude/youthful-ptolemy-disug4"
+}
