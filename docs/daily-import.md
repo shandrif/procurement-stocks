@@ -34,9 +34,12 @@ during the import; only `data/` and, if needed, `config/source.json`.
      procurement inventory tab). If that tab was renamed, every tab is read;
      update `sheets` to the new name.
 
-5. **Publish.** Commit `data/inventory.enc.json`, `data/history.enc.json` and any
-   config change with the message `Daily stock import <YYYY-MM-DD>`, then push to
-   `publishBranch`. GitHub Actions redeploys the site within a minute or two.
+5. **Publish.** Run `npm run deploy` (builds `_site/` and deploys the Cloudflare
+   Worker `hm-stock-control` with the `CLOUDFLARE_API_TOKEN` and
+   `CLOUDFLARE_ACCOUNT_ID` from the environment). Then commit
+   `data/inventory.enc.json`, `data/history.enc.json` and any config change with
+   the message `Daily stock import <YYYY-MM-DD>` and push to `publishBranch`.
+   Live site: https://hm-stock-control.abidihaiderabidi72.workers.dev
 
 6. **If anything fails** (file not found, access denied, import error), don't push
    partial data. Yesterday's data stays live. Report what failed in one short

@@ -11,9 +11,9 @@ SharePoint workbook ──(07:00 Riyadh, Claude + M365 connector)──► scrip
         │                                                         │ parse, classify, encrypt
         ▼                                                         ▼
   data/raw/latest.txt (never committed)          data/inventory.enc.json + history.enc.json
-                                                                  │ git push
+                                                                  │ npm run deploy
                                                                   ▼
-                                                 GitHub Pages ─► browser decrypts after login
+                                           Cloudflare Worker ─► browser decrypts after login
 ```
 
 - **Static site, no server.** `index.html` + `assets/`. No build step, no npm packages.
@@ -51,7 +51,8 @@ The scheduled job follows [`docs/daily-import.md`](docs/daily-import.md).
 
 ## Hosting
 
-`.github/workflows/pages.yml` publishes the site to GitHub Pages on every push to
-`main` or a `claude/**` branch. One-time setup: repository **Settings → Pages →
-Source: GitHub Actions**. If the `github-pages` environment only allows the default
-branch, add the publish branch under **Settings → Environments → github-pages**.
+Live at **https://hm-stock-control.abidihaiderabidi72.workers.dev**, a Cloudflare
+Worker serving the static files (`wrangler.jsonc`). `npm run deploy` builds
+`_site/` (page, assets and the encrypted data only) and deploys it; it needs
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in the environment. Data files
+are served with `Cache-Control: no-store` so each morning's import shows at once.

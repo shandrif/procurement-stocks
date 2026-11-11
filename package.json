@@ -2,11 +2,15 @@
   "name": "procurement-stocks",
   "private": true,
   "type": "module",
-  "description": "½M stock control dashboard fed daily from the procurement stock file",
+  "description": "\u00bdM stock control dashboard fed daily from the procurement stock file",
   "scripts": {
     "ingest": "node scripts/ingest.mjs",
     "check": "node scripts/ingest.mjs --dry-run",
-    "serve": "python3 -m http.server 8080"
+    "serve": "python3 -m http.server 8080",
+    "build": "node scripts/build-site.mjs",
+    "deploy": "node scripts/build-site.mjs && npx --yes wrangler@4 deploy"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }
