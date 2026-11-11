@@ -40,6 +40,7 @@ function finishBoot() { const b = $('#boot'); if (!b) return; b.classList.add('i
 
 function showLogin() {
   $('#app').hidden = true;
+  $('#login').classList.remove('is-leaving');
   $('#login').hidden = false;
   finishBoot();
   setTimeout(() => $('#login-user').focus(), 50);
@@ -62,9 +63,14 @@ $('#login-form').addEventListener('submit', async (ev) => {
   try {
     const key = await unlock(user, pass);
     remember(key, $('#login-remember').checked);
+    $('#login').classList.add('is-leaving');
+    await new Promise((r) => setTimeout(r, reduceMotion() ? 0 : 480));
     await start(key);
+    $('#app').classList.add('is-entering');
+    setTimeout(() => $('#app').classList.remove('is-entering'), 900);
     $('#login-pass').value = '';
   } catch (e) {
+    $('#login').classList.remove('is-leaving');
     fail(e instanceof WrongLogin ? e.message : `Couldn't load the stock data. ${e.message}`);
   } finally {
     btn.disabled = false; btn.classList.remove('is-loading'); btn.querySelector('.btn-label').textContent = 'Sign in';
@@ -72,9 +78,29 @@ $('#login-form').addEventListener('submit', async (ev) => {
   function fail(msg) {
     err.textContent = msg; err.hidden = false;
     card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+    wiggle();
     $('#login-pass').select();
   }
 });
+
+/* Clay scene: shapes drift toward the pointer, nearer shapes move more. */
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const scene = $('#clay-scene');
+let raf = 0;
+$('#login').addEventListener('pointermove', (e) => {
+  if (reduceMotion() || e.pointerType !== 'mouse') return;
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(() => {
+    scene.style.setProperty('--mx', ((e.clientX / innerWidth) - 0.5).toFixed(3));
+    scene.style.setProperty('--my', ((e.clientY / innerHeight) - 0.5).toFixed(3));
+  });
+});
+$('#login').addEventListener('pointerleave', () => { scene.style.setProperty('--mx', 0); scene.style.setProperty('--my', 0); });
+function wiggle() {
+  const m = $('.login-mark');
+  m.classList.remove('is-wiggle'); void m.offsetWidth; m.classList.add('is-wiggle');
+}
+$('.login-mark').addEventListener('click', wiggle);
 
 $('#btn-logout').addEventListener('click', () => {
   forget();

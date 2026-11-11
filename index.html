@@ -18,8 +18,18 @@
 <body>
   <!-- Sign in -->
   <main id="login" class="login" hidden>
+    <div class="clay-scene" id="clay-scene" aria-hidden="true">
+      <span class="clay-depth" style="--d:1.6;left:8%;top:14%"><i class="clay clay-sphere clay--tan" style="--s:150px;--dur:11s"></i></span>
+      <span class="clay-depth" style="--d:0.8;left:76%;top:9%"><i class="clay clay-ring clay--teal" style="--s:170px;--dur:14s;--delay:-3s"></i></span>
+      <span class="clay-depth" style="--d:2.2;left:82%;top:64%"><i class="clay clay-sphere clay--teal" style="--s:96px;--dur:9s;--delay:-5s"></i></span>
+      <span class="clay-depth" style="--d:1.2;left:4%;top:68%"><i class="clay clay-pill clay--ink" style="--s:190px;--dur:13s;--delay:-2s"></i></span>
+      <span class="clay-depth" style="--d:2.8;left:22%;top:82%"><i class="clay clay-sphere clay--red" style="--s:54px;--dur:8s;--delay:-1s"></i></span>
+      <span class="clay-depth" style="--d:2.4;left:66%;top:84%"><i class="clay clay-bean" style="--s:64px;--dur:10s;--delay:-6s;--r:-30deg"></i></span>
+      <span class="clay-depth" style="--d:3.2;left:28%;top:6%"><i class="clay clay-bean" style="--s:46px;--dur:9s;--delay:-4s;--r:40deg"></i></span>
+      <span class="clay-depth" style="--d:1.9;left:58%;top:22%"><i class="clay clay-sphere clay--beige" style="--s:40px;--dur:7s;--delay:-2s"></i></span>
+    </div>
     <form class="login-card" id="login-form" novalidate>
-      <div class="brand-mark brand-mark--lg" aria-hidden="true">½M</div>
+      <div class="brand-mark brand-mark--lg login-mark" aria-hidden="true">½M</div>
       <h1 class="login-title">Stock Control</h1>
       <p class="login-sub">Sign in to see today's inventory.</p>
 
@@ -43,7 +53,7 @@
       <p class="form-error" id="login-error" role="alert" hidden></p>
       <button class="btn btn-primary btn-block" type="submit" id="login-submit">
         <span class="btn-label">Sign in</span>
-        <span class="spinner" aria-hidden="true"></span>
+        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
       </button>
       <p class="login-foot">
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>

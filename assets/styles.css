@@ -444,3 +444,254 @@ td.muted { color: var(--ink-2); }
   .item-cell { max-width: 128px; }
   .badge { padding: 0 8px; }
 }
+
+/* =====================================================================
+   CLAYMORPHISM LAYER
+   Soft, puffy surfaces: a lit top-left inner edge, a shaded bottom-right
+   inner edge and a warm outer drop. Inputs are pressed into the clay;
+   buttons squish when pressed.
+   ===================================================================== */
+:root {
+  --r-lg: 28px; --r-md: 20px; --r-sm: 14px; --r-xs: 10px;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --clay-hi: rgba(255, 255, 255, 0.85);
+  --clay-lo: rgba(150, 118, 78, 0.20);
+  --clay-drop: rgba(140, 104, 62, 0.22);
+  --clay-surface: #FAF4EC;
+  --clay-sunk: #EFE5D8;
+  --clay:
+    inset 6px 6px 12px var(--clay-hi),
+    inset -6px -6px 14px var(--clay-lo),
+    14px 18px 36px -10px var(--clay-drop),
+    -6px -6px 18px rgba(255, 255, 255, 0.6);
+  --clay-sm:
+    inset 3px 3px 6px var(--clay-hi),
+    inset -3px -3px 8px var(--clay-lo),
+    6px 8px 16px -6px var(--clay-drop);
+  --clay-in:
+    inset 4px 4px 10px rgba(150, 118, 78, 0.22),
+    inset -4px -4px 10px rgba(255, 255, 255, 0.85);
+  --clay-dark-btn:
+    inset 3px 3px 6px rgba(255, 255, 255, 0.22),
+    inset -4px -4px 10px rgba(0, 0, 0, 0.45),
+    8px 12px 22px -8px rgba(29, 27, 23, 0.55);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --clay-hi: rgba(255, 240, 220, 0.07);
+    --clay-lo: rgba(0, 0, 0, 0.45);
+    --clay-drop: rgba(0, 0, 0, 0.55);
+    --clay-surface: #24201B;
+    --clay-sunk: #1A1714;
+    --clay:
+      inset 5px 5px 12px var(--clay-hi), inset -6px -6px 14px var(--clay-lo),
+      14px 18px 36px -10px var(--clay-drop), -4px -4px 14px rgba(255, 240, 220, 0.025);
+    --clay-in: inset 4px 4px 10px rgba(0, 0, 0, 0.5), inset -3px -3px 8px rgba(255, 240, 220, 0.05);
+    --clay-dark-btn:
+      inset 3px 3px 6px rgba(255, 255, 255, 0.5), inset -4px -4px 10px rgba(120, 100, 70, 0.35),
+      8px 12px 22px -8px rgba(0, 0, 0, 0.7);
+  }
+}
+:root[data-theme="dark"] {
+  --clay-hi: rgba(255, 240, 220, 0.07);
+  --clay-lo: rgba(0, 0, 0, 0.45);
+  --clay-drop: rgba(0, 0, 0, 0.55);
+  --clay-surface: #24201B;
+  --clay-sunk: #1A1714;
+  --clay:
+    inset 5px 5px 12px var(--clay-hi), inset -6px -6px 14px var(--clay-lo),
+    14px 18px 36px -10px var(--clay-drop), -4px -4px 14px rgba(255, 240, 220, 0.025);
+  --clay-in: inset 4px 4px 10px rgba(0, 0, 0, 0.5), inset -3px -3px 8px rgba(255, 240, 220, 0.05);
+  --clay-dark-btn:
+    inset 3px 3px 6px rgba(255, 255, 255, 0.5), inset -4px -4px 10px rgba(120, 100, 70, 0.35),
+    8px 12px 22px -8px rgba(0, 0, 0, 0.7);
+}
+
+/* Surfaces */
+.card, .login-card, .drawer { background: var(--clay-surface); border: 0; box-shadow: var(--clay); }
+.card.table-card { box-shadow: var(--clay); }
+.stat, .mv { background: var(--clay-sunk); box-shadow: var(--clay-in); border-radius: var(--r-md); }
+button.kpi { transition: transform 260ms var(--ease-spring), box-shadow 260ms var(--ease-out); }
+@media (hover: hover) and (pointer: fine) {
+  button.kpi:hover { transform: translateY(-3px); box-shadow: var(--clay), 0 22px 40px -18px var(--clay-drop); }
+}
+button.kpi:active { transform: translateY(0) scale(0.98); }
+.kpi-value { text-shadow: 0 1px 0 var(--clay-hi); }
+
+/* Inputs pressed into the clay */
+.input, .select { background: var(--clay-sunk); border: 0; box-shadow: var(--clay-in); border-radius: var(--r-sm); }
+.input:focus, .select:focus {
+  box-shadow: var(--clay-in), 0 0 0 3px color-mix(in srgb, var(--focus) 35%, transparent);
+}
+.toolbar .select, .toolbar .input { height: 44px; }
+
+/* Buttons: puffy, squish on press */
+.btn { border-radius: var(--r-sm); transition: transform 220ms var(--ease-spring), box-shadow 200ms var(--ease-out), background-color 160ms; }
+.btn-primary { background: var(--accent); box-shadow: var(--clay-dark-btn); }
+.btn-primary:active:not(:disabled) { transform: scale(0.96, 0.93); box-shadow: inset 4px 4px 10px rgba(0,0,0,0.5), inset -2px -2px 6px rgba(255,255,255,0.1); }
+.btn-secondary { background: var(--clay-surface); border: 0; box-shadow: var(--clay-sm); }
+.btn-secondary:active { transform: scale(0.96, 0.94); box-shadow: var(--clay-in); }
+.icon-btn { border-radius: var(--r-sm); }
+.icon-btn:active { box-shadow: var(--clay-in); }
+
+/* Navigation */
+.tabs { background: var(--clay-sunk); box-shadow: var(--clay-in); border-radius: 18px; padding: 5px; }
+.tab { border-radius: 13px; }
+.tab::before { background: var(--clay-surface); box-shadow: var(--clay-sm); transition: opacity 240ms var(--ease-out), transform 320ms var(--ease-spring); transform: scale(0.85); }
+.topbar { background: color-mix(in srgb, var(--bg) 78%, transparent); }
+.brand-mark { box-shadow: var(--clay-dark-btn); border-radius: 12px; }
+.brand-mark--lg { border-radius: 18px; }
+
+/* Chips & segmented control */
+.chip { border: 0; background: var(--clay-surface); box-shadow: var(--clay-sm); height: 34px; border-radius: 17px; transition: transform 240ms var(--ease-spring), box-shadow 200ms, background-color 200ms, color 200ms; }
+.chip:active { transform: scale(0.94); box-shadow: var(--clay-in); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); box-shadow: var(--clay-dark-btn); }
+.seg-control { background: var(--clay-sunk); box-shadow: var(--clay-in); border-radius: var(--r-sm); padding: 4px; }
+.seg-control button { border-radius: 10px; }
+.seg-control button[aria-pressed="true"] { background: var(--clay-surface); box-shadow: var(--clay-sm); }
+
+/* Bars sit in clay grooves */
+.health-bar, .bar-track, .mini-meter { box-shadow: var(--clay-in); background: var(--clay-sunk); }
+.health-bar { height: 16px; border-radius: 8px; padding: 2px; }
+.health-bar > span { border-radius: 6px; box-shadow: inset 2px 2px 3px rgba(255,255,255,0.35), inset -2px -2px 4px rgba(0,0,0,0.18); }
+.bar-track { height: 12px; border-radius: 6px; }
+.bar-track > span { box-shadow: inset 1px 1px 2px rgba(255,255,255,0.35), inset -1px -2px 3px rgba(0,0,0,0.15); }
+.badge { box-shadow: inset 1px 1px 2px rgba(255,255,255,0.5), inset -1px -1px 3px rgba(0,0,0,0.08); }
+.legend-row, button.bar-row, .attention-row { border-radius: var(--r-sm); }
+@media (hover: hover) and (pointer: fine) {
+  button.legend-row:hover, button.bar-row:hover, .attention-row:hover { background: var(--clay-sunk); box-shadow: var(--clay-in); }
+}
+
+/* Table */
+thead th { background: var(--clay-sunk); }
+.empty-chart { border: 0; background: var(--clay-sunk); box-shadow: var(--clay-in); }
+.banner { border-radius: var(--r-md); box-shadow: var(--clay-sm); }
+.toast { border-radius: 16px; box-shadow: var(--clay-dark-btn); }
+.drawer { border-radius: var(--r-lg); }
+.chart-tip { border-radius: 12px; box-shadow: var(--clay-dark-btn); }
+
+/* =====================================================================
+   LOGIN: floating clay scene
+   ===================================================================== */
+.login { position: relative; overflow: hidden; isolation: isolate; }
+.clay-scene { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.clay-depth {
+  position: absolute; display: block;
+  transform: translate3d(calc(var(--mx, 0) * var(--d) * 14px), calc(var(--my, 0) * var(--d) * 14px), 0);
+  transition: transform 900ms var(--ease-out);
+}
+.clay {
+  display: block; width: var(--s); height: var(--s);
+  animation:
+    clay-pop 900ms var(--ease-spring) both,
+    clay-float var(--dur, 10s) ease-in-out var(--delay, 0s) infinite;
+  animation-delay: calc(var(--d, 1) * 90ms), var(--delay, 0s);
+  will-change: transform;
+}
+.clay-depth .clay { animation-delay: calc(var(--d) * 110ms), var(--delay, 0s); }
+@keyframes clay-pop { from { opacity: 0; scale: 0.4; } }
+@keyframes clay-float {
+  0%, 100% { transform: translate(0, 0) rotate(var(--r, 0deg)); }
+  33% { transform: translate(10px, -18px) rotate(calc(var(--r, 0deg) + 8deg)); }
+  66% { transform: translate(-8px, 10px) rotate(calc(var(--r, 0deg) - 6deg)); }
+}
+
+.clay-sphere { border-radius: 50%; }
+.clay--tan   { --c1: #F1DCC0; --c2: #D4B38B; --c3: #A9845A; }
+.clay--teal  { --c1: #C4EADF; --c2: #84C6B2; --c3: #4E9984; }
+.clay--red   { --c1: #F0A89D; --c2: #C2564A; --c3: #8E3329; }
+.clay--beige { --c1: #FFFFFF; --c2: #EADCC9; --c3: #C9B497; }
+.clay--ink   { --c1: #57524A; --c2: #2B2824; --c3: #12110F; }
+.clay-sphere, .clay-pill {
+  background: radial-gradient(circle at 32% 28%, var(--c1), var(--c2) 52%, var(--c3) 100%);
+  box-shadow:
+    inset -10px -14px 24px rgba(0, 0, 0, 0.18),
+    inset 10px 12px 20px rgba(255, 255, 255, 0.45),
+    18px 28px 40px -12px rgba(120, 88, 50, 0.35);
+}
+.clay-pill { height: calc(var(--s) * 0.38); border-radius: 999px; --r: -24deg; }
+.clay-ring {
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, transparent 0 34%, var(--c2) 35% 100%);
+  -webkit-mask: radial-gradient(circle, transparent 0 34%, #000 35%);
+          mask: radial-gradient(circle, transparent 0 34%, #000 35%);
+  box-shadow:
+    inset -12px -16px 26px rgba(0, 0, 0, 0.2),
+    inset 12px 14px 22px rgba(255, 255, 255, 0.5);
+  filter: drop-shadow(16px 24px 22px rgba(120, 88, 50, 0.28));
+}
+.clay-bean {
+  height: calc(var(--s) * 0.72); border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #A97A52, #6B4529 55%, #3E2614);
+  box-shadow: inset -6px -8px 12px rgba(0,0,0,0.3), inset 5px 6px 10px rgba(255,255,255,0.25), 10px 16px 22px -8px rgba(80, 50, 20, 0.45);
+  position: relative;
+}
+.clay-bean::after {
+  content: ""; position: absolute; left: 48%; top: 12%; bottom: 12%; width: 22%;
+  border-left: 3px solid rgba(30, 16, 6, 0.65); border-radius: 50%;
+  box-shadow: -2px 0 0 rgba(255, 220, 180, 0.15);
+}
+
+/* Card entrance: spring, then children stagger in */
+.login-card { position: relative; animation: clay-card 760ms var(--ease-spring) both; }
+@keyframes clay-card { from { opacity: 0; transform: translateY(40px) scale(0.9); } }
+.login-card > * { animation: rise 520ms var(--ease-out) both; }
+.login-card > :nth-child(1) { animation: mark-pop 700ms var(--ease-spring) 180ms both; }
+.login-card > :nth-child(2) { animation-delay: 240ms; }
+.login-card > :nth-child(3) { animation-delay: 290ms; }
+.login-card > :nth-child(4) { animation-delay: 340ms; }
+.login-card > :nth-child(5) { animation-delay: 390ms; }
+.login-card > :nth-child(6) { animation-delay: 440ms; }
+.login-card > :nth-child(n+7) { animation-delay: 490ms; }
+@keyframes mark-pop { from { opacity: 0; transform: scale(0.3) rotate(-25deg); } }
+
+.login-mark { transition: transform 500ms var(--ease-spring); }
+.login-mark.is-wiggle { animation: wiggle 600ms var(--ease-out); }
+@keyframes wiggle { 20% { transform: rotate(-10deg) scale(1.06); } 45% { transform: rotate(8deg); } 70% { transform: rotate(-4deg); } 100% { transform: rotate(0); } }
+
+/* Field: label warms up on focus */
+.field-label { transition: color 200ms var(--ease-out), transform 260ms var(--ease-spring); transform-origin: left; display: inline-block; }
+.field:focus-within .field-label { color: var(--ink); transform: translateX(2px) scale(1.03); }
+.login .input { height: 52px; font-size: var(--fs-md); padding: 0 16px; }
+
+/* Primary sign-in button */
+.login .btn-block { height: 54px; border-radius: 16px; font-size: 16px; position: relative; overflow: hidden; }
+.login .btn-block::after { /* soft sheen that sweeps on hover */
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%);
+  transform: translateX(-120%); transition: transform 700ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) { .login .btn-block:hover::after { transform: translateX(120%); } .login .btn-block:hover { transform: translateY(-2px); } }
+
+.dots { display: none; gap: 5px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: dot 900ms var(--ease-in-out) infinite; }
+.dots i:nth-child(2) { animation-delay: 120ms; } .dots i:nth-child(3) { animation-delay: 240ms; }
+@keyframes dot { 0%, 100% { transform: translateY(0); opacity: 0.5; } 40% { transform: translateY(-6px); opacity: 1; } }
+.is-loading .dots { display: inline-flex; }
+
+/* Error: card shakes, message springs in */
+.form-error { border-radius: var(--r-sm); box-shadow: var(--clay-in); animation: err-in 420ms var(--ease-spring); }
+@keyframes err-in { from { opacity: 0; transform: translateY(-6px) scale(0.96); } }
+
+/* Success: card lifts away, clay scatters */
+.login.is-leaving .login-card { animation: card-out 460ms var(--ease-in-out) forwards; }
+.login.is-leaving .clay-depth { transition: transform 600ms var(--ease-in-out), opacity 500ms var(--ease-out); opacity: 0;
+  transform: translate3d(calc((var(--d) - 1.8) * 120px), calc(var(--d) * -60px), 0) scale(1.2); }
+@keyframes card-out { 30% { transform: scale(1.03); } to { opacity: 0; transform: translateY(-24px) scale(0.92); } }
+
+/* App enters after login */
+.app.is-entering .page > * { animation: rise 520ms var(--ease-out) both; }
+
+@media (max-width: 560px) {
+  .clay-depth:nth-child(2), .clay-depth:nth-child(4) { scale: 0.6; }
+  .login-card { border-radius: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .clay { animation: none !important; }
+  .clay-depth { transition: none; transform: none; }
+}
+.login-card.shake { animation: shake 420ms var(--ease-out); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .clay-sphere, :root:not([data-theme="light"]) .clay-pill { box-shadow: inset -10px -14px 24px rgba(0,0,0,0.3), inset 10px 12px 20px rgba(255,255,255,0.35), 18px 28px 40px -12px rgba(0,0,0,0.7); }
+}
+:root[data-theme="dark"] .clay-sphere, :root[data-theme="dark"] .clay-pill { box-shadow: inset -10px -14px 24px rgba(0,0,0,0.3), inset 10px 12px 20px rgba(255,255,255,0.35), 18px 28px 40px -12px rgba(0,0,0,0.7); }
