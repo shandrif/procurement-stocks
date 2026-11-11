@@ -17,14 +17,20 @@ const STATUS = {
 const ORDER = ['out', 'critical', 'low', 'ok'];
 const badge = (s) => `<span class="badge badge--${s}">${STATUS[s].label}</span>`;
 
+const newViewState = () => ({ filters: { q: '', status: 'all', category: '', location: '', mode: 'location' }, sort: null, limit: 150 });
 const state = {
   data: null,
   records: [],
   view: 'overview',
-  filters: { q: '', status: 'all', category: '', location: '', mode: 'location' },
-  sort: null,
-  limit: 150,
+  views: { inventory: newViewState(), critical: newViewState(), out: newViewState() },
 };
+// state.filters / sort / limit always refer to the view on screen (overview borrows inventory's).
+const vs = () => state.views[state.view] ?? state.views.inventory;
+Object.defineProperties(state, {
+  filters: { get: () => vs().filters },
+  sort: { get: () => vs().sort, set: (v) => { vs().sort = v; } },
+  limit: { get: () => vs().limit, set: (v) => { vs().limit = v; } },
+});
 
 /* ---------------- Boot & auth ---------------- */
 
@@ -106,6 +112,7 @@ $('#btn-logout').addEventListener('click', () => {
   forget();
   state.data = null; state.records = [];
   $('#page').innerHTML = '';
+  viewEls.clear();
   showLogin();
 });
 
@@ -114,6 +121,7 @@ $('#btn-theme').addEventListener('click', () => {
   const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('hm-theme', root.dataset.theme); } catch {}
+  invalidateViews();
   render();
 });
 
@@ -148,7 +156,8 @@ async function start(key, { keepView = false } = {}) {
     inUse: state.records.some((r) => r.inUse != null),
     multiLoc: new Set(state.records.map((r) => r.location)).size > 1,
   };
-  if (!state.has.multiLoc) state.filters.mode = 'location';
+  if (!state.has.multiLoc) Object.values(state.views).forEach((v) => (v.filters.mode = 'location'));
+  invalidateViews();
   $('#login').hidden = true;
   $('#app').hidden = false;
   $('#sample-banner').hidden = !data.inventory.source?.sample;
@@ -178,26 +187,123 @@ function viewFromHash() {
   const v = location.hash.replace('#', '');
   return ['overview', 'inventory', 'critical', 'out'].includes(v) ? v : 'overview';
 }
-window.addEventListener('hashchange', () => { if (state.data) { state.view = viewFromHash(); state.limit = 150; render(); window.scrollTo({ top: 0 }); } });
+window.addEventListener('popstate', () => {
+  if (!state.data) return;
+  const v = viewFromHash();
+  if (v !== state.view) { state.view = v; render(); }
+});
 $('#tabs').addEventListener('click', (e) => {
   const tab = e.target.closest('.tab');
   if (tab) go(tab.dataset.view);
 });
 function go(view, filters) {
-  if (filters) Object.assign(state.filters, filters);
-  if (view === 'critical' || view === 'out') state.sort = null;
-  if (location.hash === `#${view}`) { state.view = view; render(); } else location.hash = view;
+  if (filters && state.views[view]) {
+    Object.assign(state.views[view].filters, filters);
+    state.views[view].sort = null;
+    state.views[view].limit = 150;
+    viewEls.get(view)?.setAttribute('data-dirty', '');
+  }
+  if (view === state.view && !filters) return;
+  state.view = view;
+  if (location.hash !== `#${view}`) history.pushState(null, '', `#${view}`);
+  render();
+}
+
+/* Each view keeps its DOM once built, so switching tabs only hides/shows it.
+   The swap is one fade on one layer: old view fades out (ease-in, 120ms),
+   new view is built if needed while nothing is visible, then fades up. */
+const viewEls = new Map();
+let swapTimer = 0;
+const OUT_MS = 120;
+
+function invalidateViews() { viewEls.forEach((el) => el.setAttribute('data-dirty', '')); }
+
+function viewEl(view) {
+  let el = viewEls.get(view);
+  if (!el) {
+    el = document.createElement('section');
+    el.className = 'view';
+    el.dataset.view = view;
+    el.setAttribute('data-dirty', '');
+    $('#page').append(el);
+    viewEls.set(view, el);
+  }
+  return el;
+}
+
+function build(el) {
+  const prev = state.view;
+  state.view = el.dataset.view; // builders read the active view's state
+  el.innerHTML = '';
+  if (el.dataset.view === 'overview') renderOverview(el); else renderTableView(el, el.dataset.view);
+  state.view = prev;
+  el.removeAttribute('data-dirty');
 }
 
 function render() {
   if (!state.data) return;
-  document.querySelectorAll('.tab').forEach((t) => t.toggleAttribute('aria-current', t.dataset.view === state.view));
-  document.querySelectorAll('.tab[aria-current]').forEach((t) => t.setAttribute('aria-current', 'page'));
-  const page = $('#page');
-  page.innerHTML = '';
-  if (state.view === 'overview') renderOverview(page);
-  else renderTableView(page, state.view);
+  document.querySelectorAll('.tab').forEach((t) => {
+    if (t.dataset.view === state.view) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+  });
+  moveIndicator();
+
+  const next = viewEl(state.view);
+  const prev = [...viewEls.values()].find((el) => el.classList.contains('is-active'));
+  clearTimeout(swapTimer);
+  viewEls.forEach((el) => { if (el !== next && el !== prev) el.classList.remove('is-active', 'is-leaving', 'is-entering'); });
+
+  const show = () => {
+    if (prev && prev !== next) prev.classList.remove('is-active', 'is-leaving');
+    next.classList.add('is-active', 'is-entering');
+    if (next.hasAttribute('data-dirty')) build(next);
+    window.scrollTo(0, 0);
+    // two frames: let the hidden-state styles apply before transitioning in
+    requestAnimationFrame(() => requestAnimationFrame(() => next.classList.remove('is-entering')));
+    if (!prebuilt) idle(prebuild);
+  };
+
+  if (prev === next) {
+    if (next.hasAttribute('data-dirty')) build(next);
+    next.classList.add('is-active'); next.classList.remove('is-leaving', 'is-entering');
+    return;
+  }
+  if (!prev || reduceMotion()) return show();
+  prev.classList.add('is-leaving');
+  swapTimer = setTimeout(show, OUT_MS);
 }
+
+// Build the other tabs in idle time so the first switch is already instant.
+let prebuilt = false;
+const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 300));
+function prebuild(deadline) {
+  prebuilt = true;
+  for (const v of ['inventory', 'critical', 'out', 'overview']) {
+    if (v === state.view || v === 'overview') continue;
+    const el = viewEl(v);
+    if (el.hasAttribute('data-dirty')) { build(el); warm(el); }
+    if (deadline?.timeRemaining && deadline.timeRemaining() < 4) { prebuilt = false; return idle(prebuild); }
+  }
+}
+
+// Render a hidden view once (invisibly) so the browser caches its layout and paint;
+// content-visibility: hidden then keeps that cache for an instant first show.
+function warm(el) {
+  el.classList.add('is-warm');
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('is-warm')));
+}
+
+/* Sliding pill under the active tab: transform + width on one small element. */
+function moveIndicator({ animate = true } = {}) {
+  const tabs = $('#tabs'), pill = $('#tab-pill'), tab = tabs.querySelector('.tab[aria-current]');
+  if (!pill || !tab) return;
+  if (!animate || !pill.dataset.ready) pill.style.transition = 'none';
+  pill.style.width = `${tab.offsetWidth}px`;
+  pill.style.transform = `translateX(${tab.offsetLeft}px)`;
+  if (!animate || !pill.dataset.ready) { void pill.offsetWidth; pill.style.transition = ''; pill.dataset.ready = '1'; }
+  if (tabs.scrollWidth > tabs.clientWidth) tab.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
+}
+window.addEventListener('resize', debounce(() => moveIndicator({ animate: false }), 100));
+document.fonts?.ready.then(() => moveIndicator({ animate: false }));
 
 /* ---------------- Overview ---------------- */
 
@@ -216,8 +322,8 @@ function renderOverview(page) {
         <p class="page-sub">${fmt.format(s.items)} items${s.locations > 1 ? ` across ${fmt.format(s.locations)} locations` : ''}. ${headline(s)}</p>
       </div>
     </div>
-    <section class="grid enter" id="kpis"></section>
-    <section class="grid enter" style="margin-top:16px">
+    <section class="grid" id="kpis"></section>
+    <section class="grid" style="margin-top:16px">
       <article class="card span-4">
         <div class="card-head"><div><h2 class="card-title">Stock health</h2><p class="card-sub">${fmt.format(s.records)} stock lines</p></div></div>
         <div class="health-bar" role="img" aria-label="Stock health">${ORDER.map((k) => s[k] ? `<span class="seg--${k}" style="flex:${s[k]}"></span>` : '').join('')}</div>
@@ -442,7 +548,7 @@ function currentRows(base, locked) {
     (locked || f.status === 'all' || r.status === f.status) &&
     (!f.category || r.category === f.category) &&
     (!f.location || r.location === f.location) &&
-    (!q || `${r.item} ${r.short ?? ''} ${r.code} ${r.location} ${r.category}`.toLowerCase().includes(q)));
+    (!q || `${r.item} ${r.short ?? ''} ${r.code} ${r.location}`.toLowerCase().includes(q)));
   if (f.mode === 'item') rows = aggregate(rows);
   return sortRows(rows, locked);
 }
@@ -675,7 +781,7 @@ document.addEventListener('keydown', (e) => {
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
-  if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') { const q = $('#q'); if (q) { e.preventDefault(); q.focus(); } }
+  if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') { const q = $('.view.is-active #q'); if (q) { e.preventDefault(); q.focus(); } }
 });
 
 /* ---------------- Helpers ---------------- */
@@ -694,7 +800,10 @@ const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValu
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 let resizeFns = [];
 function onResize(fn) { resizeFns = [fn]; }
-window.addEventListener('resize', debounce(() => resizeFns.forEach((f) => document.contains(document.querySelector('#trend')) && f()), 150));
+window.addEventListener('resize', debounce(() => {
+  if (state.view === 'overview') resizeFns.forEach((f) => f());
+  else viewEls.get('overview')?.setAttribute('data-dirty', '');
+}, 150));
 
 function toast(msg) {
   const t = document.createElement('div');

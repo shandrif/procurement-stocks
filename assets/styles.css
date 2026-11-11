@@ -695,3 +695,45 @@ thead th { background: var(--clay-sunk); }
   :root:not([data-theme="light"]) .clay-sphere, :root:not([data-theme="light"]) .clay-pill { box-shadow: inset -10px -14px 24px rgba(0,0,0,0.3), inset 10px 12px 20px rgba(255,255,255,0.35), 18px 28px 40px -12px rgba(0,0,0,0.7); }
 }
 :root[data-theme="dark"] .clay-sphere, :root[data-theme="dark"] .clay-pill { box-shadow: inset -10px -14px 24px rgba(0,0,0,0.3), inset 10px 12px 20px rgba(255,255,255,0.35), 18px 28px 40px -12px rgba(0,0,0,0.7); }
+
+
+/* =====================================================================
+   NAVIGATION MOTION (60fps): only transform + opacity are animated.
+   ===================================================================== */
+.tabs { position: relative; isolation: isolate; }
+.tab::before { content: none; }
+.tab-pill {
+  position: absolute; left: 0; top: 5px; bottom: 5px; z-index: 0; border-radius: 13px;
+  background: var(--clay-surface); box-shadow: var(--clay-sm);
+  transition: transform 340ms var(--ease-drawer), width 340ms var(--ease-drawer);
+  will-change: transform;
+}
+.tab { position: relative; z-index: 1; transition: color 200ms var(--ease-out), transform 160ms var(--ease-out); }
+
+.view { transition: opacity 260ms var(--ease-out), transform 300ms var(--ease-drawer); }
+.view.is-entering { opacity: 0; transform: translate3d(0, 10px, 0); transition: none; }
+.view.is-leaving { opacity: 0; transform: translate3d(0, -4px, 0); transition: opacity 120ms var(--ease-in-out), transform 120ms var(--ease-in-out); }
+.view.is-entering, .view.is-leaving { will-change: opacity, transform; pointer-events: none; }
+
+/* Cheaper painting while scrolling: no live blur behind the sticky bar,
+   cards are layout islands, hover lifts use transform only. */
+.topbar { backdrop-filter: none; -webkit-backdrop-filter: none; background: color-mix(in srgb, var(--bg) 96%, transparent); }
+.card { contain: layout style; }
+button.kpi, button.kpi:hover { box-shadow: var(--clay); }
+button.kpi { transition: transform 260ms var(--ease-spring); }
+@media (hover: hover) and (pointer: fine) { button.kpi:hover { transform: translate3d(0, -3px, 0); } }
+tbody tr { transition: none; }
+@media (hover: hover) and (pointer: fine) {
+  button.legend-row:hover, button.bar-row:hover, .attention-row:hover { box-shadow: none; background: var(--clay-sunk); }
+}
+@media (prefers-reduced-motion: reduce) { .tab-pill, .view { transition: none !important; } }
+
+.page { position: relative; }
+.view:not(.is-active) {
+  position: absolute; top: 24px; left: 24px; right: 24px;
+  content-visibility: hidden; opacity: 0; pointer-events: none;
+}
+.view.is-warm { content-visibility: visible; }
+@media (max-width: 900px) { .view:not(.is-active) { top: 16px; left: 16px; right: 16px; } }
+/* Keep the active view on its own compositor layer so fades never re-rasterise it. */
+.view.is-active { will-change: opacity, transform; }
