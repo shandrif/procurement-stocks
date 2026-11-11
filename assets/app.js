@@ -117,7 +117,12 @@ async function start(key, { keepView = false } = {}) {
     uom: state.records.some((r) => r.uom),
     code: state.records.some((r) => r.code),
     value: state.records.some((r) => r.unitCost),
+    movement: state.records.some((r) => r.stockOut != null || r.stockIn != null),
+    opening: state.records.some((r) => r.opening != null),
+    inUse: state.records.some((r) => r.inUse != null),
+    multiLoc: new Set(state.records.map((r) => r.location)).size > 1,
   };
+  if (!state.has.multiLoc) state.filters.mode = 'location';
   $('#login').hidden = true;
   $('#app').hidden = false;
   $('#sample-banner').hidden = !data.inventory.source?.sample;
@@ -182,7 +187,7 @@ function renderOverview(page) {
       <div>
         <p class="eyebrow">${esc(dateLine(inventory.generatedAt))}</p>
         <h1 class="page-title">Inventory overview</h1>
-        <p class="page-sub">${fmt.format(s.items)} items across ${fmt.format(s.locations)} location${s.locations === 1 ? '' : 's'}. ${headline(s)}</p>
+        <p class="page-sub">${fmt.format(s.items)} items${s.locations > 1 ? ` across ${fmt.format(s.locations)} locations` : ''}. ${headline(s)}</p>
       </div>
     </div>
     <section class="grid enter" id="kpis"></section>
@@ -193,6 +198,7 @@ function renderOverview(page) {
         <div class="legend">${ORDER.map((k) => `
           <button class="legend-row" data-status="${k}"><span class="dot dot--${k}"></span><span>${STATUS[k].label}</span><span class="num">${fmt.format(s[k])}</span><span class="pct">${pct(s[k])}%</span></button>`).join('')}
         </div>
+        <p class="card-sub rule-note">${ruleText(inventory.thresholds)}</p>
       </article>
       <article class="card span-8">
         <div class="card-head">
@@ -205,13 +211,16 @@ function renderOverview(page) {
         <div class="card-head"><div><h2 class="card-title">By category</h2><p class="card-sub">Stock lines by status, most urgent first</p></div></div>
         <div class="bars" id="by-category"></div>
       </article>
-      <article class="card span-6">
+      ${state.has.multiLoc || !state.has.movement ? `<article class="card span-6">
         <div class="card-head"><div><h2 class="card-title">By location</h2><p class="card-sub">Stock lines by status, most urgent first</p></div></div>
         <div class="bars" id="by-location"></div>
-      </article>
+      </article>` : `<article class="card span-6">
+        <div class="card-head"><div><h2 class="card-title">Most issued</h2><p class="card-sub">Units issued, and what's left on hand</p></div></div>
+        <div class="bars bars--wide" id="most-issued"></div>
+      </article>`}
       <article class="card span-12">
         <div class="card-head">
-          <div><h2 class="card-title">Order first</h2><p class="card-sub">Out of stock lines with the highest use, then critical lines with the least cover</p></div>
+          <div><h2 class="card-title">Order first</h2><p class="card-sub">Out of stock items that are issued most, then critical items with the least left</p></div>
           <button class="link" data-go="critical">See all critical</button>
         </div>
         <div class="attention" id="attention"></div>
@@ -231,10 +240,12 @@ function renderOverview(page) {
     if (opts.spark?.length > 1) t.querySelector('.kpi-foot').append(sparkline(opts.spark, opts.color));
     kpis.append(t);
   };
-  tile({ label: 'Items tracked', value: fmt.format(s.items), foot: `${fmt.format(s.records)} lines · ${fmt.format(s.locations)} locations`, spark: series('items'), color: 'var(--ink-3)' });
+  tile({ label: 'Items tracked', value: fmt.format(s.items), foot: state.has.multiLoc ? `${fmt.format(s.records)} lines · ${fmt.format(s.locations)} locations` : state.has.inUse ? `${fmt.format(s.inUse)} units in use` : `${fmt.format(s.records)} lines`, spark: series('items'), color: 'var(--ink-3)' });
   tile({
     label: 'Units on hand', value: compact.format(s.units),
-    foot: state.has.value ? `SAR ${compact.format(s.value)} value ${delta(s.units, prev?.units, { pct: true, upGood: true })}` : delta(s.units, prev?.units, { pct: true, upGood: true, label: true }),
+    foot: state.has.value ? `SAR ${compact.format(s.value)} value ${delta(s.units, prev?.units, { pct: true, upGood: true })}`
+      : state.has.movement ? `${compact.format(s.stockIn ?? 0)} in · ${compact.format(s.stockOut ?? 0)} out ${delta(s.units, prev?.units, { pct: true, upGood: true })}`
+      : delta(s.units, prev?.units, { pct: true, upGood: true, label: true }),
     spark: series('units'), color: 'var(--ok)',
   });
   tile({ label: 'Critical', value: fmt.format(s.critical), foot: `${pct(s.critical)}% of lines ${delta(s.critical, prev?.critical)}`, spark: series('critical'), color: 'var(--crit)', mod: 'kpi--critical', dot: 'dot--critical', go: 'critical' });
@@ -257,16 +268,17 @@ function renderOverview(page) {
   }
 
   breakdown($('#by-category', page), 'category');
-  breakdown($('#by-location', page), 'location');
+  if ($('#by-location', page)) breakdown($('#by-location', page), 'location');
+  else mostIssued($('#most-issued', page));
 
   // Attention list
-  const outs = state.records.filter((r) => r.status === 'out').sort((a, b) => (b.usage ?? 0) - (a.usage ?? 0) || a.item.localeCompare(b.item));
+  const outs = state.records.filter((r) => r.status === 'out').sort((a, b) => demand(b) - demand(a) || a.item.localeCompare(b.item));
   const crits = state.records.filter((r) => r.status === 'critical').sort((a, b) => coverRank(a) - coverRank(b));
   const list = [...outs, ...crits].slice(0, 10);
   $('#attention', page).innerHTML = list.length ? list.map((r) => `
     <button class="attention-row" data-item="${esc(r.item)}">
-      <span><span class="item-name">${esc(r.item)}</span><span class="where">${esc(r.location)}${r.code ? ` · ${esc(r.code)}` : ''}</span></span>
-      <span class="num muted">${qtyText(r)}${r.cover != null && r.qty > 0 ? ` · ${fmt1.format(r.cover)} days` : ''}</span>
+      <span><span class="item-name">${esc(nameOf(r))}</span><span class="where">${esc([state.has.multiLoc && r.location, r.code, r.category].filter(Boolean).join(' · '))}</span></span>
+      <span class="num muted">${qtyText(r)} left${r.cover != null && r.qty > 0 ? ` · ${fmt1.format(r.cover)} days` : r.stockOut ? ` · ${fmt.format(r.stockOut)} issued` : ''}</span>
       ${badge(r.status)}
     </button>`).join('') : `<div class="empty"><strong>Nothing urgent</strong>No lines are out of stock or critical today.</div>`;
 
@@ -292,6 +304,28 @@ function headline(s) {
   return `${parts.join(' and ')} need ordering.`;
 }
 
+const nameOf = (r) => r.short || r.item;
+const sameName = (r) => !r.short || r.short.trim().toLowerCase() === r.item.trim().toLowerCase();
+const demand = (r) => r.usage ?? r.stockOut ?? 0;
+
+function ruleText(t) {
+  if (state.has.min) return `Critical means at or below the minimum level. Low means within ${t.lowFactor}× of it.`;
+  if (state.has.cover) return `Critical means under ${t.criticalDays} days of cover at the average daily use.`;
+  if (state.has.movement) return `Critical: ${t.criticalQty} or fewer left, or less than ${t.criticalCoverPct}% of the units issued. Low: ${t.criticalQty * t.lowFactor} or fewer, or under ${t.lowCoverPct}%.`;
+  return `Critical: ${t.criticalQty} or fewer left. Low: ${t.criticalQty * t.lowFactor} or fewer.`;
+}
+
+function mostIssued(container) {
+  const list = state.records.filter((r) => r.stockOut > 0).sort((a, b) => b.stockOut - a.stockOut).slice(0, 8);
+  const max = Math.max(1, ...list.map((r) => r.stockOut));
+  container.innerHTML = list.map((r, i) => `
+    <button class="bar-row" data-item="${esc(r.item)}" title="${esc(r.item)}">
+      <span class="label">${esc(nameOf(r))}</span>
+      <span class="bar-track" style="width:${Math.max(4, (r.stockOut / max) * 100)}%"><span style="flex:1;background:${STATUS[r.status].color};animation-delay:${i * 40}ms"></span></span>
+      <span class="num">${fmt.format(r.stockOut)} <span style="color:var(--ink-3);font-weight:500">out · ${fmt.format(r.qty)} left</span></span>
+    </button>`).join('');
+}
+
 function breakdown(container, key) {
   const groups = new Map();
   for (const r of state.records) {
@@ -314,8 +348,8 @@ function breakdown(container, key) {
 
 const VIEW_COPY = {
   inventory: { title: 'Inventory', sub: 'Every stock line from the latest import.' },
-  critical: { title: 'Critical stock', sub: 'At or below minimum level, or under a week of cover. Order these next.' },
-  out: { title: 'Out of stock', sub: 'Zero on hand today. Highest-use lines are listed first.' },
+  critical: { title: 'Critical stock', sub: 'About to run out. Order these next.' },
+  out: { title: 'Out of stock', sub: 'Nothing left on hand. The most-issued items are listed first.' },
 };
 
 function renderTableView(page, view) {
@@ -331,7 +365,7 @@ function renderTableView(page, view) {
       <div>
         <p class="eyebrow">${esc(dateLine(state.data.inventory.generatedAt))}</p>
         <h1 class="page-title">${copy.title}</h1>
-        <p class="page-sub">${copy.sub}</p>
+        <p class="page-sub">${copy.sub}${view === 'critical' ? ` ${ruleText(state.data.inventory.thresholds).split(' Low:')[0]}` : ''}</p>
       </div>
       <button class="btn btn-secondary" id="export">
         <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 15v2h12v-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -341,14 +375,14 @@ function renderTableView(page, view) {
     <div class="toolbar">
       <label class="search">
         <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13.5 13.5 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <input class="input" id="q" type="search" placeholder="Search item, code or location" value="${esc(f.q)}" aria-label="Search">
+        <input class="input" id="q" type="search" placeholder="${state.has.multiLoc ? 'Search item, code or location' : 'Search item or code'}" value="${esc(f.q)}" aria-label="Search">
       </label>
       <select class="select" id="f-category" aria-label="Category"><option value="">All categories</option>${uniq('category').map((c) => `<option ${c === f.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
-      <select class="select" id="f-location" aria-label="Location"><option value="">All locations</option>${uniq('location').map((c) => `<option ${c === f.location ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      ${state.has.multiLoc ? `<select class="select" id="f-location" aria-label="Location"><option value="">All locations</option>${uniq('location').map((c) => `<option ${c === f.location ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
       <div class="seg-control" role="group" aria-label="Group rows">
         <button data-mode="location" aria-pressed="${f.mode === 'location'}">By location</button>
         <button data-mode="item" aria-pressed="${f.mode === 'item'}">By item</button>
-      </div>
+      </div>` : ''}
     </div>
     ${locked ? '' : `<div class="chips" id="chips" style="margin:-4px 0 16px">
       <button class="chip" data-chip="all" aria-pressed="${f.status === 'all'}">All <span class="num">${fmt.format(state.records.length)}</span></button>
@@ -359,7 +393,7 @@ function renderTableView(page, view) {
   const refresh = () => drawTable($('#table', page), base, locked);
   $('#q', page).addEventListener('input', debounce((e) => { f.q = e.target.value; state.limit = 150; refresh(); }, 120));
   $('#f-category', page).addEventListener('change', (e) => { f.category = e.target.value; refresh(); });
-  $('#f-location', page).addEventListener('change', (e) => { f.location = e.target.value; refresh(); });
+  $('#f-location', page)?.addEventListener('change', (e) => { f.location = e.target.value; refresh(); });
   page.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
     f.mode = b.dataset.mode; state.sort = null;
     page.querySelectorAll('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', x === b));
@@ -382,7 +416,7 @@ function currentRows(base, locked) {
     (locked || f.status === 'all' || r.status === f.status) &&
     (!f.category || r.category === f.category) &&
     (!f.location || r.location === f.location) &&
-    (!q || `${r.item} ${r.code} ${r.location} ${r.category}`.toLowerCase().includes(q)));
+    (!q || `${r.item} ${r.short ?? ''} ${r.code} ${r.location} ${r.category}`.toLowerCase().includes(q)));
   if (f.mode === 'item') rows = aggregate(rows);
   return sortRows(rows, locked);
 }
@@ -393,6 +427,8 @@ function aggregate(rows) {
     const k = r.item.toLowerCase();
     const a = map.get(k) ?? { item: r.item, code: r.code, category: r.category, uom: r.uom, qty: 0, min: null, usage: null, locations: 0, outAt: 0, critAt: 0, status: 'ok' };
     a.qty += Math.max(0, r.qty);
+    for (const k of ['opening', 'stockIn', 'stockOut', 'inUse']) if (r[k] != null) a[k] = (a[k] ?? 0) + r[k];
+    a.short ??= r.short;
     if (r.min != null) a.min = (a.min ?? 0) + r.min;
     if (r.usage != null) a.usage = (a.usage ?? 0) + r.usage;
     a.locations++;
@@ -404,13 +440,13 @@ function aggregate(rows) {
   return [...map.values()].map((a) => ({ ...a, cover: a.usage > 0 ? a.qty / a.usage : null }));
 }
 
-const coverRank = (r) => (r.cover != null ? r.cover : r.min ? r.qty / r.min * 7 : r.qty);
+const coverRank = (r) => (r.cover != null ? r.cover : r.min ? r.qty / r.min * 7 : r.stockOut > 0 ? r.qty / r.stockOut : r.qty);
 
 function sortRows(rows, locked) {
   const s = state.sort;
   if (!s) {
     return rows.sort((a, b) => STATUS[a.status].rank - STATUS[b.status].rank ||
-      (a.status === 'out' ? (b.usage ?? 0) - (a.usage ?? 0) : coverRank(a) - coverRank(b)) ||
+      (a.status === 'out' ? demand(b) - demand(a) : coverRank(a) - coverRank(b)) ||
       a.item.localeCompare(b.item));
   }
   const dir = s.dir === 'asc' ? 1 : -1;
@@ -441,8 +477,12 @@ function columns(mode) {
   return [
     { key: 'item', label: 'Item' },
     { key: 'category', label: 'Category', cls: 'hide-sm' },
-    { key: 'location', label: 'Location' },
+    h.multiLoc && { key: 'location', label: 'Location' },
+    h.opening && { key: 'opening', label: 'Opening', n: true, cls: 'hide-sm' },
+    h.movement && { key: 'stockIn', label: 'Stock in', n: true, cls: 'hide-sm' },
+    h.movement && { key: 'stockOut', label: 'Stock out', n: true, cls: 'hide-sm' },
     { key: 'qty', label: 'On hand', n: true },
+    h.inUse && { key: 'inUse', label: 'In use', n: true, cls: 'hide-sm' },
     h.min && { key: 'min', label: 'Min', n: true, cls: 'hide-sm' },
     h.cover && { key: 'cover', label: 'Days cover', n: true, cls: 'hide-sm' },
     { key: 'status', label: 'Status' },
@@ -484,7 +524,10 @@ function drawTable(host, base, locked) {
 function cell(c, r) {
   const cls = `${c.n ? 'n' : ''} ${c.cls ?? ''}`;
   switch (c.key) {
-    case 'item': return `<td><span class="item-name">${esc(r.item)}</span>${r.code ? `<span class="item-code">${esc(r.code)}</span>` : ''}</td>`;
+    case 'item': {
+      const sub = [r.code, sameName(r) ? '' : r.item].filter(Boolean).join(' · ');
+      return `<td class="item-cell"><span class="item-name">${esc(nameOf(r))}</span>${sub ? `<span class="item-code" title="${esc(sub)}">${esc(sub)}</span>` : ''}</td>`;
+    }
     case 'status': return `<td>${badge(r.status)}</td>`;
     case 'qty': {
       const ref = r.min ? r.min * 2 : null;
@@ -495,7 +538,7 @@ function cell(c, r) {
     case 'cover': return `<td class="${cls} muted">${r.cover != null ? `${fmt1.format(r.cover)} d` : '—'}</td>`;
     case 'outAt': return `<td class="${cls}" style="${r.outAt ? 'color:var(--out-ink);font-weight:600' : ''}">${r.outAt || '—'}</td>`;
     case 'critAt': return `<td class="${cls}" style="${r.critAt ? 'color:var(--crit-ink);font-weight:600' : ''}">${r.critAt || '—'}</td>`;
-    default: return `<td class="${cls} ${c.n ? '' : 'muted'}">${c.n ? fmt.format(r[c.key] ?? 0) : esc(r[c.key])}</td>`;
+    default: return `<td class="${cls} ${c.n ? 'muted' : 'muted'}">${c.n ? (r[c.key] == null ? '—' : fmt.format(r[c.key])) : esc(r[c.key])}</td>`;
   }
 }
 
@@ -503,7 +546,9 @@ const qtyText = (r) => `${fmt.format(r.qty)}${r.uom ? ` <span style="color:var(-
 
 function exportCsv(rows, view) {
   const cols = columns(state.filters.mode).map((c) => c.key);
-  if (state.filters.mode === 'location') cols.splice(1, 0, 'code');
+  cols.splice(1, 0, 'code');
+  if (state.has.short || state.records.some((r) => r.short)) cols.splice(1, 0, 'short');
+  if (!state.has.multiLoc) { const i = cols.indexOf('location'); if (i > -1) cols.splice(i, 1); }
   const head = cols.map((c) => c === 'cover' ? 'days_cover' : c);
   const line = (vals) => vals.map((v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; }).join(',');
   const csv = [line(head), ...rows.map((r) => line(cols.map((c) => c === 'status' ? STATUS[r.status].label : c === 'cover' && r.cover != null ? r.cover.toFixed(1) : r[c])))].join('\n');
@@ -524,17 +569,24 @@ function openItem(name) {
   const agg = aggregate(lines)[0];
   const root = $('#drawer');
   $('#drawer-eyebrow').textContent = [agg.category, agg.code].filter(Boolean).join(' · ');
-  $('#drawer-title').textContent = name;
+  $('#drawer-title').textContent = nameOf(lines[0]);
   const max = Math.max(1, ...lines.map((l) => Math.max(l.qty, l.min ?? 0)));
   const trend = state.data.history.filter((h) => h.perItem && name in h.perItem);
 
+  const mv = state.has.movement ? movement(agg) : '';
   $('#drawer-body').innerHTML = `
+    ${sameName(lines[0]) ? '' : `<p class="card-sub" style="margin:-8px 0 0">${esc(name)}</p>`}
     <div class="stat-row">
       <div class="stat"><p class="eyebrow">On hand</p><div class="v">${fmt.format(agg.qty)}${agg.uom ? ` <small style="font-size:var(--fs-xs);color:var(--ink-3)">${esc(agg.uom)}</small>` : ''}</div></div>
+      ${state.has.multiLoc ? `
       <div class="stat"><p class="eyebrow">${agg.cover != null ? 'Days cover' : 'Locations'}</p><div class="v">${agg.cover != null ? fmt1.format(agg.cover) : agg.locations}</div></div>
-      <div class="stat"><p class="eyebrow">Need ordering</p><div class="v">${agg.outAt + agg.critAt} <small style="font-size:var(--fs-xs);color:var(--ink-3)">of ${agg.locations} location${agg.locations === 1 ? '' : 's'}</small></div></div>
+      <div class="stat"><p class="eyebrow">Need ordering</p><div class="v">${agg.outAt + agg.critAt} <small style="font-size:var(--fs-xs);color:var(--ink-3)">of ${agg.locations} location${agg.locations === 1 ? '' : 's'}</small></div></div>` : `
+      <div class="stat"><p class="eyebrow">${state.has.movement ? 'Issued' : 'Days cover'}</p><div class="v">${state.has.movement ? fmt.format(agg.stockOut ?? 0) : agg.cover != null ? fmt1.format(agg.cover) : '—'}</div></div>
+      <div class="stat"><p class="eyebrow">Status</p><div class="v">${badge(agg.status)}</div></div>`}
     </div>
-    <section>
+    ${mv}
+    ${lines.some((l) => l.note) ? `<p class="card-sub" style="margin:0">Note: ${esc(lines.map((l) => l.note).filter(Boolean).join(' · '))}</p>` : ''}
+    <section ${state.has.multiLoc ? '' : 'hidden'}>
       <div class="card-head"><h3 class="card-title">By location</h3><span class="card-sub">${agg.outAt} out · ${agg.critAt} critical</span></div>
       <div class="bars">${lines.map((l, i) => `
         <div class="bar-row" title="${esc(l.location)}">
@@ -562,6 +614,22 @@ function openItem(name) {
       lineChart($('#item-trend'), { labels: trend.map((h) => shortDay(h.day)), series: [{ name: 'On hand', color: cssVar('--ok'), values: trend.map((h) => h.perItem[name]) }], height: 180 });
     }
   });
+}
+
+function movement(a) {
+  const opening = a.opening ?? 0, inn = a.stockIn ?? 0, out = a.stockOut ?? 0;
+  const expected = opening + inn - out;
+  const row = (label, v, cls = '') => `<div class="mv-row ${cls}"><span>${label}</span><span class="num">${v}</span></div>`;
+  return `<section>
+    <div class="card-head"><h3 class="card-title">Stock movement</h3>${a.inUse != null ? `<span class="card-sub">${fmt.format(a.inUse)} in use</span>` : ''}</div>
+    <div class="mv">
+      ${row('Opening quantity', fmt.format(opening))}
+      ${row('Stock in', `+ ${fmt.format(inn)}`, 'mv-in')}
+      ${row('Stock out', `− ${fmt.format(out)}`, 'mv-out')}
+      ${row('On hand', fmt.format(a.qty), 'mv-total')}
+    </div>
+    ${expected !== a.qty ? `<p class="form-error" style="margin:12px 0 0">Opening + in − out gives ${fmt.format(expected)}, but the file shows ${fmt.format(a.qty)} on hand. Worth a recount.</p>` : ''}
+  </section>`;
 }
 
 function closeDrawer() {

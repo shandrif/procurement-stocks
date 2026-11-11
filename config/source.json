@@ -1,14 +1,17 @@
 {
   "source": {
-    "label": "Procurement stock file",
+    "label": "Asset Inventory Management \u00b7 Inventory 2 (procurement)",
     "owner": "Mohammad Hasan",
-    "fileName": null,
+    "fileName": "Asset Inventory Management",
     "shareUrl": "https://halfm-my.sharepoint.com/:x:/g/personal/mohammad_hasan_halfm_sa/cQpsgk4gW8sFQpHKAUAKypMdEgUCLxwz7z0Px_sj48AGCTZz3w",
     "connectorUri": null
   },
   "timezone": "Asia/Riyadh",
   "layout": "auto",
-  "sheets": [],
+  "sheets": [
+    "Inventory 2 (procurement)",
+    "Inventory"
+  ],
   "ignoreSheets": [
     "Total",
     "Summary",
@@ -17,10 +20,67 @@
   ],
   "columns": {},
   "thresholds": {
-    "criticalQty": 10,
-    "criticalDays": 7,
-    "lowFactor": 2
+    "criticalQty": 3,
+    "lowFactor": 2,
+    "criticalCoverPct": 10,
+    "lowCoverPct": 25,
+    "criticalDays": 7
   },
-  "categoryKeywords": {},
-  "publishBranch": "claude/youthful-ptolemy-disug4"
+  "categoryKeywords": {
+    "Refrigeration & ice": [
+      "refrigerator",
+      "freezer",
+      "ice maker",
+      "ice storage",
+      "souda"
+    ],
+    "Bins & smallwares": [
+      "trash bin"
+    ],
+    "Brewing & dispensing": [
+      "thermal",
+      "server dispenser",
+      "crathco",
+      "nitro",
+      "fudge",
+      "blender",
+      "ice cream"
+    ],
+    "Coffee machines & grinders": [
+      "grinder",
+      "espresso",
+      "synesso",
+      "fetco",
+      "brewer",
+      "xbloom",
+      "tamper",
+      "puq",
+      "knock box",
+      "pro-fondi",
+      "rinser"
+    ],
+    "Ovens & kitchen": [
+      "oven",
+      "turbochef",
+      "merry chef",
+      "panini"
+    ],
+    "Outdoor & patio": [
+      "outdoor",
+      "umbrella",
+      "heater",
+      "rope waving"
+    ],
+    "Furniture & fit-out": [
+      "chair",
+      "armchair",
+      "lounge",
+      "shelf",
+      "metroseal",
+      "display glass"
+    ]
+  },
+  "publishBranch": "claude/youthful-ptolemy-disug4",
+  "defaultLocation": "Main warehouse",
+  "otherCategory": "Other"
 }

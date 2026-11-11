@@ -15,6 +15,12 @@ export const DEFAULT_ALIASES = {
   max: ['max', 'max qty', 'maximum', 'max stock'],
   uom: ['uom', 'u/m', 'unit', 'unit of measure', 'units'],
   unitCost: ['unit cost', 'unit price', 'cost', 'price', 'unit pr', 'avg cost'],
+  short: ['short description', 'short desc', 'short name', 'display name'],
+  opening: ['opening quantity', 'opening qty', 'opening', 'opening balance', 'opening stock'],
+  stockIn: ['stock in', 'received', 'qty in', 'in', 'receipts', 'grn qty'],
+  stockOut: ['stock out', 'issued', 'qty out', 'out', 'issues', 'dispatched', 'transferred out'],
+  inUse: ['used working', 'in use', 'used', 'working', 'deployed', 'installed'],
+  note: ['remarks', 'remark', 'notes', 'note', 'comments', 'comment'],
   usage: ['avg daily usage', 'daily usage', 'avg daily consumption', 'daily consumption', 'consumption/day', 'usage per day', 'adu'],
 };
 
@@ -61,7 +67,9 @@ function pick(row, idx) {
 export function normalize(sheets, config = {}) {
   const aliases = buildAliases(config);
   const ignore = new Set((config.ignoreSheets ?? []).map(norm));
-  const only = (config.sheets ?? []).map(norm);
+  // Preferred sheets; if none of them exist (renamed tab), fall back to every sheet.
+  let only = (config.sheets ?? []).map(norm);
+  if (only.length && !sheets.some((sh) => only.includes(norm(sh.name)))) only = [];
   const records = [];
   const report = [];
 
@@ -80,14 +88,14 @@ export function normalize(sheets, config = {}) {
 
     const before = records.length;
     const body = sheet.rows.slice(header.index + 1);
-    if (layout === 'list') readList(sheet.name, body, header.map, records, config);
+    if (layout === 'list') readList(sheet.name, sheet.rows[header.index], body, header.map, records, config);
     else readMatrix(sheet.name, sheet.rows[header.index], body, header.map, records, config);
     report.push({ sheet: sheet.name, layout, records: records.length - before });
   }
   return { records, report };
 }
 
-function readList(sheetName, body, map, records, config) {
+function readList(sheetName, headerRow, body, map, records, config) {
   let category = '';
   for (const row of body) {
     const item = pick(row, map.item) || pick(row, map.code);
@@ -103,9 +111,15 @@ function readList(sheetName, body, map, records, config) {
       sheet: sheetName,
       item,
       code: pick(row, map.code),
-      category: pick(row, map.category) || category || config.defaultCategory || sheetName,
+      category: pick(row, map.category) || category || inferCategory(`${pick(row, map.short)} ${item}`, config) || config.defaultCategory || sheetName,
       location: pick(row, map.location) || config.defaultLocation || sheetName,
+      short: pick(row, map.short),
       qty,
+      opening: toNumber(pick(row, map.opening)),
+      stockIn: toNumber(pick(row, map.stockIn)),
+      stockOut: toNumber(pick(row, map.stockOut)),
+      inUse: toNumber(pick(row, map.inUse)),
+      note: pick(row, map.note) || unnamedText(row, headerRow),
       min: toNumber(pick(row, map.min)),
       max: toNumber(pick(row, map.max)),
       uom: pick(row, map.uom),
@@ -137,7 +151,7 @@ function readMatrix(sheetName, headerRow, body, map, records, config) {
         sheet: sheetName,
         item,
         code: pick(row, map.code),
-        category: pick(row, map.category) || category || config.defaultCategory || inferCategory(item, config),
+        category: pick(row, map.category) || category || inferCategory(item, config) || config.defaultCategory || 'General',
         location: label,
         qty: values[k] ?? 0,
         min: null, max: null, uom: pick(row, map.uom), unitCost: null, usage: null,
@@ -146,11 +160,21 @@ function readMatrix(sheetName, headerRow, body, map, records, config) {
   }
 }
 
-function inferCategory(item, config) {
-  for (const [cat, words] of Object.entries(config.categoryKeywords ?? {})) {
-    if (words.some((w) => item.toLowerCase().includes(w.toLowerCase()))) return cat;
+// Text typed into a column with no header (e.g. "Picture", "without cover").
+function unnamedText(row, headerRow) {
+  return row
+    .filter((cell, i) => !String(headerRow[i] ?? '').trim() && String(cell).trim() && toNumber(cell) === null)
+    .join(' · ');
+}
+
+function inferCategory(text, config) {
+  const rules = Object.entries(config.categoryKeywords ?? {});
+  if (!rules.length) return '';
+  const hay = text.toLowerCase();
+  for (const [cat, words] of rules) {
+    if (words.some((w) => hay.includes(w.toLowerCase()))) return cat;
   }
-  return 'General';
+  return config.otherCategory ?? 'Other';
 }
 
 // out → critical → low → ok
@@ -167,7 +191,9 @@ export function classify(rec, t) {
     if (days <= t.criticalDays * t.lowFactor) return 'low';
     return 'ok';
   }
-  if (rec.qty <= t.criticalQty) return 'critical';
-  if (rec.qty <= t.criticalQty * t.lowFactor) return 'low';
+  // No min level or daily usage: compare what's left with what has been issued.
+  const issued = rec.stockOut > 0 ? rec.qty / rec.stockOut * 100 : null;
+  if (rec.qty <= t.criticalQty || (issued !== null && issued < t.criticalCoverPct)) return 'critical';
+  if (rec.qty <= t.criticalQty * t.lowFactor || (issued !== null && issued < t.lowCoverPct)) return 'low';
   return 'ok';
 }

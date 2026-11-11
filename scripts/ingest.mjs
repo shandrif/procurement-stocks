@@ -19,7 +19,7 @@ const dateArg = args[args.indexOf('--date') + 1];
 if (!input) { console.error('Usage: ingest.mjs <workbook.txt> [--sample] [--dry-run]'); process.exit(1); }
 
 const config = JSON.parse(await readFile(path('config/source.json'), 'utf8'));
-const t = { criticalQty: 10, criticalDays: 7, lowFactor: 2, ...config.thresholds };
+const t = { criticalQty: 10, criticalDays: 7, lowFactor: 2, criticalCoverPct: 10, lowCoverPct: 25, ...config.thresholds };
 
 const text = await readFile(input, 'utf8');
 const sheets = parseWorkbookText(text);
@@ -39,6 +39,9 @@ const summary = {
   items: new Set(records.map((r) => r.item.toLowerCase())).size,
   locations: new Set(records.map((r) => r.location)).size,
   units: records.reduce((a, r) => a + Math.max(0, r.qty), 0),
+  stockIn: records.reduce((a, r) => a + (r.stockIn ?? 0), 0),
+  stockOut: records.reduce((a, r) => a + (r.stockOut ?? 0), 0),
+  inUse: records.reduce((a, r) => a + (r.inUse ?? 0), 0),
   value: records.reduce((a, r) => a + (r.unitCost ? Math.max(0, r.qty) * r.unitCost : 0), 0),
   out: count('out'), critical: count('critical'), low: count('low'), ok: count('ok'),
 };
@@ -47,7 +50,7 @@ if (dryRun) process.exit(0);
 
 const now = args.includes('--date') ? new Date(`${dateArg}T07:00:00+03:00`) : new Date();
 const keyring = JSON.parse(await readFile(path('data/keyring.json'), 'utf8'));
-const fields = ['sheet', 'item', 'code', 'category', 'location', 'qty', 'min', 'max', 'uom', 'unitCost', 'usage', 'status'];
+const fields = ['sheet', 'item', 'short', 'code', 'category', 'location', 'qty', 'opening', 'stockIn', 'stockOut', 'inUse', 'min', 'max', 'uom', 'unitCost', 'usage', 'note', 'status'];
 const payload = {
   generatedAt: now.toISOString(),
   source: { label: config.source?.label ?? 'Stock file', sample: isSample, sheets: report },

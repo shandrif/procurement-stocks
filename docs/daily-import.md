@@ -26,6 +26,13 @@ during the import; only `data/` and, if needed, `config/source.json`.
      or list summary sheets in `ignoreSheets`, then run it again. Use `--dry-run`
      while trying.
    - Check the printed summary looks sane (record count close to yesterday's).
+     The current file has about 44 asset lines (Item Code, Item Description,
+     Short Description, Opening Quantity, On Hand, Stock In, Stock Out, Used
+     Working) and a totals row above the header; the "units" total should match
+     that row's On Hand figure.
+   - Only the tabs listed in `config/source.json → sheets` are imported (the
+     procurement inventory tab). If that tab was renamed, every tab is read;
+     update `sheets` to the new name.
 
 5. **Publish.** Commit `data/inventory.enc.json`, `data/history.enc.json` and any
    config change with the message `Daily stock import <YYYY-MM-DD>`, then push to

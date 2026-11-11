@@ -21,11 +21,15 @@ SharePoint workbook ──(07:00 Riyadh, Claude + M365 connector)──► scrip
   matching private key is itself sealed with the user ID + password
   (PBKDF2-SHA256, 600k rounds → AES-GCM). Without the login, the hosted files are
   unreadable, and the daily job never needs the password.
+- **Source today:** *Asset Inventory Management · Inventory 2 (procurement)*:
+  equipment and furniture with opening quantity, stock in, stock out, on hand
+  and units in use. Categories come from keywords in `config/source.json`.
 - **Status rules** (`config/source.json → thresholds`):
   - *Out of stock*: on hand ≤ 0
-  - *Critical*: on hand ≤ min level; or, if there's no min column, < `criticalDays`
-    of cover from average daily usage; or, with neither, ≤ `criticalQty` units
-  - *Low*: within `lowFactor` × that limit
+  - *Critical*: on hand ≤ min level if the file has one; else < `criticalDays` of
+    cover if it has daily usage; else (the current file) ≤ `criticalQty` units
+    left, or on hand below `criticalCoverPct`% of units issued (stock out)
+  - *Low*: within `lowFactor` × the unit limit, or below `lowCoverPct`% of units issued
   - *Healthy*: everything else
 - **Layouts understood:** a list (one row per item or item × warehouse with a
   quantity column) or a matrix (items down the side, stores/warehouses across the
